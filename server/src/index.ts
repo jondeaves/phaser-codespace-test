@@ -1,6 +1,5 @@
 import express, { Express, Request, Response } from 'express';
 import dotenv from 'dotenv';
-import http from 'http';
 import { Server as SocketServer } from 'socket.io';
 
 dotenv.config();
@@ -8,12 +7,19 @@ dotenv.config();
 const port = process.env.PORT || 3001;
 
 const app: Express = express();
-const server: http.Server = http.createServer(app);
-
-const socketIO = new SocketServer(server);
 
 app.get('/', (req: Request, res: Response) => {
   res.send('Hello, World!');
+});
+
+const expressServer = app.listen(port, () => {
+  console.log(`⚡️[server]: Server is running at http://localhost:${port}`);
+});
+
+const socketIO = new SocketServer(expressServer, {
+  cors: {
+    origin: '*',
+  },
 });
 
 socketIO.on('connection', (socket) => {
@@ -26,8 +32,4 @@ socketIO.on('connection', (socket) => {
   socket.on('message', (msg) => {
     console.log('message: ' + msg);
   });
-});
-
-server.listen(port, () => {
-  console.log(`⚡️[server]: Server is running at http://localhost:${port}`);
 });

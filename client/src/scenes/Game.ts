@@ -9,21 +9,12 @@ export default class Demo extends Phaser.Scene {
   }
 
   preload() {
-    this.load.image("logo", "assets/player.png");
+    this.load.image("player", "assets/player.png");
   }
 
   create() {
-    this.socket = io("http://localhost:3001");
+    this.socket = io("http://localhost:4000");
 
-    const logo = this.add.image(400, 70, "logo");
-
-    this.tweens.add({
-      targets: logo,
-      y: 350,
-      duration: 1500,
-      ease: "Sine.inOut",
-      yoyo: true,
-      repeat: -1,
-    });
+    const playerImage = this.add.image(400, 70, "player");
   }
 }
