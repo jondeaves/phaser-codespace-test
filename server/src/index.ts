@@ -25,10 +25,20 @@ const socketIO = new SocketServer(expressServer, {
 });
 
 socketIO.on('connection', (socket) => {
-  console.log(`Player connected: ${socket.id}`);
+  console.log(
+    `Player connected: ${socket.id}:${socket.handshake.auth.username}`,
+  );
+
+  if (socket.handshake.auth.username.length === 0) {
+    console.log('Rejected connection due to username');
+    socket.disconnect();
+
+    return;
+  }
 
   // create a new player and add it to our players object
   players[socket.id] = {
+    username: socket.handshake.auth.username,
     rotation: 0,
     x: Math.floor(Math.random() * 700) + 50,
     y: Math.floor(Math.random() * 500) + 50,

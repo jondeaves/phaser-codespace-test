@@ -6,10 +6,13 @@ import { PlayerInfo, PositionData } from "../../../shared/types";
 export default class GameScene extends Phaser.Scene {
   socket!: Socket;
   player!: Phaser.GameObjects.Sprite;
+  label!: Phaser.GameObjects.Sprite;
   otherPlayers!: Phaser.GameObjects.Group;
+  labels!: Phaser.GameObjects.Group;
   cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   moveSpeed: number;
   oldPosition!: PositionData;
+  username: string = "";
 
   constructor() {
     super("GameScene");
@@ -22,18 +25,38 @@ export default class GameScene extends Phaser.Scene {
   }
 
   create() {
-    this.socket = io("http://localhost:4000");
+    // If no username exists then go back to login
+    this.username = localStorage.getItem("username") || "";
+    if (this.username.length === 0) {
+      this.scene.start("IntroScene");
+      return;
+    }
+
+    this.socket = io("http://localhost:4000", {
+      auth: {
+        username: this.username,
+      },
+    });
     this.otherPlayers = this.add.group();
+    this.labels = this.add.group();
     this.cursors = this.input.keyboard.createCursorKeys();
 
     const self = this;
 
     // Losing connection to server
     this.socket.on("disconnect", (reason) => {
-      self.player.destroy();
+      if (self.player) {
+        self.player.destroy();
+      }
       self.otherPlayers.getChildren().forEach((otherPlayer) => {
         otherPlayer.destroy();
       });
+      self.labels.getChildren().forEach((label) => {
+        label.destroy();
+      });
+
+      this.scene.start("IntroScene");
+      return;
     });
 
     // Custom events
@@ -51,10 +74,16 @@ export default class GameScene extends Phaser.Scene {
       self.addOtherPlayer(playerInfo);
     });
 
-    this.socket.on("playerDisconnected", (plaeryId) => {
+    this.socket.on("playerDisconnected", (playerId) => {
       self.otherPlayers.getChildren().forEach((otherPlayer) => {
-        if (plaeryId === otherPlayer.getData("playerId")) {
+        if (playerId === otherPlayer.getData("playerId")) {
           otherPlayer.destroy();
+        }
+      });
+
+      self.labels.getChildren().forEach((label) => {
+        if (playerId === label.getData("playerId")) {
+          label.destroy();
         }
       });
     });
@@ -62,9 +91,19 @@ export default class GameScene extends Phaser.Scene {
     this.socket.on("playerMoved", (playerInfo: PlayerInfo) => {
       self.otherPlayers.getChildren().forEach((otherPlayer) => {
         if (playerInfo.playerId === otherPlayer.getData("playerId")) {
-          (otherPlayer as Phaser.GameObjects.Sprite)
+          const otherPlayerObj = otherPlayer as Phaser.GameObjects.Sprite;
+
+          otherPlayerObj
             .setRotation(playerInfo.rotation)
             .setPosition(playerInfo.x, playerInfo.y);
+
+          const label = this.labels.getChildren()[
+            parseInt(otherPlayerObj.getData("labelIndex"), 10)
+          ] as Phaser.GameObjects.Sprite;
+          if (label) {
+            label.x = playerInfo.x;
+            label.y = playerInfo.y - otherPlayerObj.height / 2;
+          }
         }
       });
     });
@@ -110,6 +149,14 @@ export default class GameScene extends Phaser.Scene {
     }
 
     this.oldPosition = newPosition;
+
+    const label = this.labels.getChildren()[
+      parseInt(this.player.getData("labelIndex"), 10)
+    ] as Phaser.GameObjects.Sprite;
+    if (label) {
+      label.x = this.player.x;
+      label.y = this.player.y - this.player.height / 2;
+    }
   }
 
   addPlayer(playerInfo: PlayerInfo) {
@@ -123,10 +170,28 @@ export default class GameScene extends Phaser.Scene {
   }
 
   private playerFromInfo(playerInfo: PlayerInfo): Phaser.GameObjects.Sprite {
-    return this.add
+    const sprite = this.add
       .sprite(playerInfo.x, playerInfo.y, "player")
       .setOrigin(0.5, 0.5)
       .setDisplaySize(27, 50)
-      .setData("playerId", playerInfo.playerId);
+      .setData("playerId", playerInfo.playerId)
+      .setData("labelIndex", this.labels.getLength());
+
+    this.labels.add(
+      this.add
+        .text(
+          playerInfo.x,
+          playerInfo.y - sprite.height / 2,
+          playerInfo.username,
+          {
+            font: "17px Arial",
+            align: "center",
+          }
+        )
+        .setOrigin(0.5, 0.5)
+        .setData("playerId", playerInfo.playerId)
+    );
+
+    return sprite;
   }
 }
